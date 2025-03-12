@@ -1,5 +1,6 @@
 # This script uses an R package called pacman to check if the other packages
-# used in this example are installed on your machine. If not, it installs them.
+# used in this repository are installed on your machine. 
+#If not, it installs them.
 
 #this line checks for the pacman package, and installs it if needed.
 if (!require("pacman")) install.packages("pacman")

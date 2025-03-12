@@ -1,54 +1,111 @@
-## Define Global Parameters ----------------------------------------------------
+##Define Global Parameters
 
-# 1 - Setup the Data Folder Path -----------------------------------------------
-
-# A USEFUL TRICK FOR SHARING CODE WITH COAUTHORS
-# is to store the path to your local data folder 
-# in your project-level R environment file (.Renviron)
-
-# Step 1:
-#Uncomment and run the below line to edit your .Renviron file
+#run this to set your dropbox path in your .Renviron
 #usethis::edit_r_environ('project')
+#example for .Renviron below
+#DATA_PATH = "D:/Dropbox/EKMSW_data"
 
-#Step 2: 
-#Uncomment and paste the below line into the .Renviron file
-#The .Renviron file should be open in a separate tab in Rstudio
-#if you ran the above line correctly.
-
-#DATA_PATH = "D:/Dropbox/example-project"
-
-# Replace the quoted directory name in the example with the path
-# to whatever folder you would like to store your data in
-# Notice the slashes go the other way from Windows! 
-# It is recommended to not store your data in the Git project folder
-# Github is designed for hosting code, not data.
-# I use a separate folder, usually in Dropbox if there is enough
-# space on Dropbox.
-
-#Step 3: 
-# Comment out the code you ran to set up your Renviron and then
-# restart R. You should only have to do these steps once any time 
-# you start a new project or download a project to a new computer.
-
-#The below line loads the data path from the project environment.
-#The benefit of this is that you now only need one version of the code no 
-# matter which coauthor is running the code. The same code should work for all
-# coauthors or work the same way whether you are on your laptop or desktop, etc.
+#load the data path from the project environment
+#each person can point to the dropbox folder on their computer
 data_path <- Sys.getenv('DATA_PATH')
 
-#If the above is too complicated and you don't have coauthors you can just set
-#data_path manually by deleting everything above and uncommenting the below:
-#data_path <- "D:/Dropbox/example-project"
+#Download Dates for WRDS Data
+crsp_begin_date <- "1950-01-01"
+crsp_end_date   <- "2020-12-31"
 
-#You would then replace "D:/example-project" with your own data path. 
+#Set Deflator for scaling
+deflator <- "MVE"
 
-# 2 - Setup any project-specific parameters ------------------------------------
+#Set rolling window size
+roll_win_size <- 10L
 
-# For example, you might want to define sample years here and then you can 
-# refer to them throughout the code as needed, there are many use-cases.
+#Set minimum MVE for testing
+min_mve <- 10L
 
-#example parameters
-# beg_year and end_year to define the sample period
-beg_year <- 1970
-# the assignment arrow is an R grammar style, but equal signs work too
-end_year = 2022
+
+# Define the tuning dates ------------------------------------------------------
+
+#dates corresponding to the minimum and maximum datadates of the subjects
+min_tune_date <- lubridate::date("1979-01-01")
+max_tune_date <- lubridate::date("1994-12-01")
+
+#list of forecast dates (datadates)
+tuning_datelist <- (seq(min_tune_date,max_tune_date, by="month")+months(1)-days(1))
+
+# Define the testing dates -----------------------------------------------------
+
+#dates corresponding to the minimum and maximum datadates of the subjects
+min_test_date <- lubridate::date("1998-01-01")
+max_test_date <- lubridate::date("2019-12-01")
+
+#list of forecast dates (datadates)
+testing_datelist <- (seq(min_test_date,max_test_date, by="month")+months(1)-days(1))
+
+
+#Define the KNN model specifications -------------------------------------------
+
+#List of models to tune
+models <- c("KNN",
+            "KNNDUP1",
+            "KNNDUP2",
+            "KNNDUP3",
+            "KNNDUP4",
+            "KNNHVZ1",
+            "KNNHVZ2",
+            "KNNHVZ3",
+            "KNNHVZ4")
+
+model_vars <- list(
+  KNN = c("EARN"),
+  KNNDUP1 = c("PM", "ATO"),
+  KNNDUP2 = c("PM", "ATO", "LEV"),
+  KNNDUP3 = c("PM", "ATO", "SG"),
+  KNNDUP4 = c("PM", "ATO", "LEV", "SG"),
+  KNNHVZ1 = c("EARN", "ACC_HVZ"),
+  KNNHVZ2 = c("EARN", "ACC_HVZ", "AT_HVZ"),
+  KNNHVZ3 = c("EARN", "ACC_HVZ", "AT_HVZ", "D_HVZ"),
+  KNNHVZ4 = c("EARN", "ACC_HVZ", "AT_HVZ", "D_HVZ", "LOSS")
+)
+
+#top level list of all the unique model variables
+unique_model_vars <- unique(unlist(model_vars, use.names = FALSE))
+
+
+ols_models <- list(  # regression-based models setup
+  list("HVZ" = "FEARN ~ EARN + ACC + TA + DIV + DD + LOSS"),
+  list("EP-ALL" = "FEARN ~ LOSS*EARN"),
+  list("EP-LCYCLE" = "FEARN ~ LOSS*EARN"),
+  list("EP-GIC" = "FEARN ~ LOSS*EARN")
+)
+
+
+# create an index of all the variables for each model / M combo ----------------
+
+#bottom-level helper function
+lagfunction1 <- function(x,lags){
+  append(x,paste0(x,"_lag_",lags))
+}
+
+#second-level helper function
+lagfunction2 <- function(y,z){
+  if(y==1){
+    return(z)
+  }
+  if(y>1){
+    unlist(lapply(z, lagfunction1,1:(y-1)))
+  }
+}
+
+#combine helper functions to get the
+model_vars.M5 <- lapply(model_vars,function(w) lapply(1:5,lagfunction2,w))
+
+# define additional vars to save to M-level datasets ---------------------------
+
+#this might be a waste of time, but giving it a try.
+helper_vars <- c('gvkey','datadate',
+                 'datadate_lead_1','datadate_lead_2','datadate_lead_3',
+                 'EBSI_lead_1','EBSI_lead_2','EBSI_lead_3',
+                 'EARN_lag_1',
+                 'EARN','EARN_lead_1','EARN_lead_2','EARN_lead_3',
+                 'MVE','at','sic2','FF12', 
+                 'lifecycle','acc', 'age', 'best_gic', 'IBES_covered')
