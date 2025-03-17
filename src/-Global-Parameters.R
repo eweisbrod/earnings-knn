@@ -1,7 +1,7 @@
 ##Define Global Parameters
 
 #run this to set your dropbox path in your .Renviron
-#usethis::edit_r_environ('project')
+usethis::edit_r_environ('project')
 #example for .Renviron below
 #DATA_PATH = "D:/Dropbox/EKMSW_data"
 
