@@ -43,19 +43,8 @@ hgic <- comp.hgic  |>
   collect()
 
 
-funda_std <- comp.funda |>
-  filter(indfmt=='INDL', datafmt == 'STD', popsrc=='D' ,consol=='C')
-
-funda_summ <- comp.funda |>
-  filter(indfmt=='INDL', datafmt == 'SUMM_STD', popsrc=='D' ,consol=='C')
-
-rows_to_add <- funda_summ |>
-  anti_join(funda_std, by=c('gvkey', 'datadate')) 
-
-funda <- union_all(funda_std, rows_to_add)
-
-
-raw_funda <- funda |> 
+raw_funda <- comp.funda |>
+  filter(indfmt=='INDL', datafmt == 'STD', popsrc=='D' ,consol=='C') |> 
   select(gvkey, datadate, conm, fyear, fyr, cstat_cusip=cusip, cik,
          cstat_ticker= tic, sich, ib, ibc, spi, at, dvc, act, che, lct, dlc, txp,
          xrd, dp, ceq, sale,csho, prcc_f, ajex, ni,
