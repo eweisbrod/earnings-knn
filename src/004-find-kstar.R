@@ -2,7 +2,7 @@
 library(glue)
 library(lubridate)
 library(broom)
-library(lfe)
+library(fixest)
 library(tidyverse)
 
 
@@ -32,8 +32,9 @@ regression_row <- function(k.,
     )
   
   #run the regression
-  mafe_reg <- tidy(felm(fcast_error ~ K | 0 | 0 | gvkey + year,
-                        data = reg_data), se.type = "cluster")
+  mafe_reg <- tidy(feols(fcast_error ~ K ,
+                         vcov = ~ gvkey + year,
+                         data = reg_data), se.type = "cluster")
   
   #format the results
   row <- tibble(Model = model.,
@@ -149,9 +150,6 @@ find_kstars <- function(.Model, .Deflator = deflator, .Tolerance = 1) {
 
 # Apply functions to the model list --------------------------------------------
 
-
-#uncomment to limit to certain models
-models <- c("KNN")
 
 #apply the functions to the list of models
 lapply(models,find_kstars,.Tolerance=3)

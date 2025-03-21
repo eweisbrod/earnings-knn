@@ -133,7 +133,7 @@ data_M1 <- data0 %>%
     AT_HVZ     = at / Scalar, 
     D_HVZ = D / Scalar,
   ) %>% 
-  #define required variables in the global settings (maybe?)
+  #define required variables in the global settings 
   select(Scalar,all_of(helper_vars), all_of(unique_model_vars))
 
 

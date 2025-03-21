@@ -8,6 +8,30 @@ options(knitr.kable.NA = '')
 
 message("set R formatting options")
 
+# Set GG Plot Theme ------------------------------------------------------------
+
+EKMSW_theme <- function( ){
+  theme_bw(base_family = "serif") +
+    theme(legend.position = "bottom",
+          legend.spacing.x = unit(2, "pt"),
+          strip.background=element_blank(),
+          panel.grid.minor=element_blank(),
+          panel.grid.major=element_blank(),
+          panel.border     = element_rect(colour = "grey60"),
+          axis.text        = element_text(colour = "grey20"),
+          axis.title       = element_text(colour = "grey20"),
+          strip.text       = element_text(colour = "grey20"),
+          legend.title     = element_text(colour = "grey20"),
+          legend.text      = element_text(colour = "grey20"),
+          axis.ticks       = element_line(colour = "grey60")
+    )
+}
+theme_set(EKMSW_theme())
+
+
+message("Set GGPlot Theme")
+
+
 # Parquet functions ------------------------------------------------------------
 
 # allows for use of reading and writing parquet without library(arrow)
@@ -18,6 +42,68 @@ write_parquet <- function(x, p) {
 }
 
 message("imported parquet functions")
+
+
+# Descriptives functions -------------------------------------------------------
+
+descs <- function(dta, ...,byvar=NA) {
+  if(is.na(byvar)) {
+    dta %>%
+      select(...) %>%
+      pivot_longer(everything(), names_to="Variable", values_to="Value") %>%
+      group_by(Variable) %>%
+      summarise(N = sum(!is.na(Value)),
+                Mean = mean(Value, na.rm=T),
+                StD = sd(Value, na.rm=T),
+                Min = min(Value, na.rm=T),
+                P05 = quantile(Value, 0.05, na.rm=T),
+                P25 = quantile(Value, 0.25, na.rm=T),
+                Med = median(Value, na.rm=T),
+                P75 = quantile(Value, 0.75, na.rm=T),
+                P95 = quantile(Value, 0.95, na.rm=T),
+                Max = max(Value, na.rm=T),
+                .groups = "drop"
+      ) %>% 
+      mutate_if(is.numeric, round, digit=2) %>%
+      as.data.frame()
+    
+  }
+  else{
+    dta %>%
+      select(.data[[byvar]],...) %>%
+      pivot_longer(-.data[[byvar]], names_to="Variable", values_to="Value") %>%
+      group_by(.data[[byvar]],Variable) %>%
+      summarise(N = sum(!is.na(Value)),
+                Mean = mean(Value, na.rm=T),
+                StD = sd(Value, na.rm=T),
+                Min = min(Value, na.rm=T),
+                P05 = quantile(Value, 0.05, na.rm=T),
+                P25 = quantile(Value, 0.25, na.rm=T),
+                Med = median(Value, na.rm=T),
+                P75 = quantile(Value, 0.75, na.rm=T),
+                P95 = quantile(Value, 0.95, na.rm=T),
+                Max = max(Value, na.rm=T),
+                .groups = "drop"
+      ) %>%
+      group_by(Variable) %>% 
+      summarise('Total N' = sum(N),
+                'Avg N' = round(mean(N),digits=0),
+                Mean = mean(Mean),
+                StD = mean(StD),
+                Min = mean(Min),
+                P05 = mean(P05),
+                P25 = mean(P25),
+                Med = mean(Med),
+                P75 = mean(P75),
+                P95 = mean(P95),
+                Max = mean(Max),
+                .groups = "drop"
+      ) %>% 
+      mutate_if(is.numeric, round, digit=2) %>%
+      as.data.frame()
+  }
+}
+message("imported descs()")
 
 
 # Industry functions -----------------------------------------------------------
@@ -335,7 +421,78 @@ truncate_x = function(x, cuts = c(0.01,0.01)) {
   return(x)
 }
 
+
+decrank_conversion <- function(x) {
+  x = case_when(
+    x ==  1 ~ 0,
+    x ==  2 ~ 1/9,
+    x ==  3 ~ 2/9,
+    x ==  4 ~ 3/9,
+    x ==  5 ~ 4/9,
+    x ==  6 ~ 5/9,
+    x ==  7 ~ 6/9,
+    x ==  8 ~ 7/9,
+    x ==  9 ~ 8/9,
+    x == 10 ~ 9/9
+  )
+}
+
+quintrank_conversion <- function(x) {
+  x = case_when(
+    x ==  1 ~ 0,
+    x ==  2 ~ 1/4,
+    x ==  3 ~ 2/4,
+    x ==  4 ~ 3/4,
+    x ==  5 ~ 4/4
+  )
+}
+
+
+
 message("imported transformation functions")
+
+# Fama-MacBeth Function --------------------------------------------------------
+
+
+fmb_regression <- function(dta, timevar, model) {
+  
+  fit_fmb <- dta %>% 
+    nest_by({{timevar}}) %>% 
+    mutate(myfit = {{model}}) %>% 
+    summarise(tidy_out = list(tidy(myfit)),
+              glance_out = list(glance(myfit)),
+              augment_out = list(augment(myfit))) %>%
+    ungroup()
+  
+  fmb <- unnest(select(fit_fmb, {{timevar}}, tidy_out, glance_out))
+  
+  out_fmb <- fmb %>% 
+    group_by(term) %>% 
+    summarize(coeff     = mean(estimate),
+              sd_coeff  = sd(estimate),
+              n         = n(),
+              r2        = mean(adj.r.squared),
+              nobs      = mean(nobs)) %>% 
+    mutate(tval = coeff / (sd_coeff / sqrt(n))) %>% 
+    mutate(coeff = coeff * 100) %>% 
+    mutate(across(where(is.numeric), round, 2)) %>% 
+    mutate(pval = 2 * pnorm(-abs(tval)),
+           stars = case_when(
+             pval < 0.01 ~ "***",
+             pval < 0.05 ~ "**",
+             pval < 0.10 ~ "*",
+             pval < 1    ~ "")) %>% 
+    mutate(coeff = paste0(coeff, stars)) %>% 
+    mutate(tval = paste0("[",tval,"]")) %>% 
+    select(term, coeff, tval, r2, nobs, n)
+  
+  return(out_fmb)
+  
+}
+
+
+message("imported Fama-Macbeth Function")
+
 
 # Check Duplicates -------------------------------------------------------------
 

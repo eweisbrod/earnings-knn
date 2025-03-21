@@ -51,15 +51,15 @@ knn_fcast_function <- function(.grid,
              Sys.getpid()))
   
   #set the forecast horizon
-  .fcstHzn <- as.numeric(.grid["myFcstHzn"])
+  .fcstHzn <- as.numeric(.grid["myFcstHzn"])  
   
   #Prepare the data to match the forecast horizon
-  .fcast_dta <- .fcast_dta %>%
+  .fcast_dta <- .fcast_dta |>
     mutate(
       FEBSI = .data[[paste0("EBSI_lead_",.fcstHzn)]],
       FEARN = .data[[paste0("EARN_lead_",.fcstHzn)]],
       Fdatadate = .data[[paste0("datadate_lead_",.fcstHzn)]]
-    ) %>% 
+    ) |> 
     select(Scalar,all_of(.helper_vars), FEBSI, FEARN,Fdatadate,unlist(.var_idx[[.model]][.myM]))
   
   #generate the forecasts
@@ -95,9 +95,9 @@ model_fcast_function <- function(.Model,
   )
   
   #select the model with the lowest training error
-  kstar <- read_parquet(glue("{data_path}/{.Model}-kstar-data.parquet")) %>% 
-    filter(kstar==TRUE) %>% 
-    arrange(MAFE) %>% 
+  kstar <- read_parquet(glue("{data_path}/{.Model}-kstar-data.parquet")) |> 
+    filter(kstar==TRUE) |> 
+    arrange(MAFE) |> 
     slice(1)
   
   #use the M and K from that model
@@ -106,7 +106,7 @@ model_fcast_function <- function(.Model,
   
   
   #First, read data and filter to the model being forecast
-  forecast_data <- read_parquet(glue("{data_path}/data_M{myM}.parquet"))  %>% 
+  forecast_data <- read_parquet(glue("{data_path}/data_M{myM}.parquet"))  |> 
     filter_at(.vars = unlist(.var_index[[.Model]][myM]),all_vars(!is.na(.))) 
   
   #reserve parallel resources for tuning
@@ -142,11 +142,11 @@ model_fcast_function <- function(.Model,
   lapply(
     unlist(unique(.Grid$myFcstHzn)),
     function(x){
-      write_parquet(bind_rows(map(results,1)) %>%
+      write_parquet(bind_rows(map(results,1)) |>
                       filter(FcstHzn==x),
                     glue("{data_path}/t{x}-{.Model}-fcasts.parquet"))
       
-      write_parquet(bind_rows(map(results,2)) %>%
+      write_parquet(bind_rows(map(results,2)) |>
                       filter(FcstHzn==x),
                     glue("{data_path}/t{x}-{.Model}-peer-data.parquet"))
       
